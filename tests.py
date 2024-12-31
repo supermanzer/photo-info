@@ -67,9 +67,9 @@ class TestPhotoInfo(unittest.TestCase):
         mock_file().write.assert_any_call("title: placeholder\n")
         mock_file().write.assert_any_call("description: placeholder\n")
         mock_file().write.assert_any_call("details:\n")
-        mock_file().write.assert_any_call("\tMake: NIKON CORPORATION\n")
-        mock_file().write.assert_any_call("\tModel: NIKON D750\n")
-        mock_file().write.assert_any_call("\tDateTimeOriginal: 2021:09:01 12:00:00\n")
+        mock_file().write.assert_any_call("  Make: NIKON CORPORATION\n")
+        mock_file().write.assert_any_call("  Model: NIKON D750\n")
+        mock_file().write.assert_any_call("  DateTimeOriginal: 2021:09:01 12:00:00\n")
         mock_file().write.assert_any_call("---\n")
 
 

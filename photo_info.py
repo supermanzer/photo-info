@@ -46,7 +46,7 @@ def write_to_markdown(image_name: str, labeled_exif: dict, md_dir: str) -> None:
         f.write("details:\n")
         for label, value in labeled_exif.items():
             value = str(value).rstrip("\x00")  # some values have trailing null bytes
-            f.write(f"\t{label}: {value}\n")
+            f.write(f"  {label}: {value}\n")
         f.write("---\n")
 
 
