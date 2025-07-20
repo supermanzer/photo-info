@@ -66,16 +66,15 @@ def write_to_markdown(image_name: str, labeled_exif: dict, md_dir: str) -> None:
     Returns:
         None - Writes the markdown file to disk.
     """
-    filename = md_dir + image_name.split("/")[-1].replace(".jpg", ".md")
-    local_path_sections = image_name.split("/")
-    try:
-        public_index = local_path_sections.index("public")
-        local_path = "/".join(local_path_sections[public_index + 1:])
-    except ValueError:
-        # If 'public' is not in path, use the filename only
-        local_path = image_name.split("/")[-1]
+    # Mirror the directory structure of image_name in md_dir
+    md_rel_path = os.path.splitext(image_name)[0] + ".md"
+    md_full_path = os.path.join(md_dir, md_rel_path)
+    os.makedirs(os.path.dirname(md_full_path), exist_ok=True)
 
-    with open(filename, "w+", encoding="utf-8") as f:
+    # For src, use the image_name as the relative path
+    local_path = image_name
+
+    with open(md_full_path, "w+", encoding="utf-8") as f:
         f.write("---\n")
         f.write("title: placeholder\n")
         f.write("description: placeholder\n")
@@ -96,11 +95,27 @@ def identify_new_images(image_dir: str, md_dir: str) -> list:
     Returns:
         (list) A list of image names that do not have a corresponding markdown file.
     """
-    images = [f for f in os.listdir(image_dir) if f.endswith(".jpg")]
-    mds = [f for f in os.listdir(md_dir) if f.endswith(".md")]
-    image_names = [f.split(".")[0] for f in images]
-    md_names = [f.split(".")[0] for f in mds]
-    new_images = [f for f in image_names if f not in md_names]
+    # Recursively find all .jpg images in image_dir
+    image_paths = []
+    for root, _, files in os.walk(image_dir):
+        for f in files:
+            if f.endswith(".jpg"):
+                abs_path = os.path.join(root, f)
+                rel_path = os.path.relpath(abs_path, image_dir)
+                image_paths.append(rel_path)
+
+    # Recursively find all .md files in md_dir
+    md_paths = []
+    for root, _, files in os.walk(md_dir):
+        for f in files:
+            if f.endswith(".md"):
+                abs_path = os.path.join(root, f)
+                rel_path = os.path.relpath(abs_path, md_dir)
+                md_paths.append(rel_path)
+
+    # Remove extensions for comparison
+    md_basenames = set([os.path.splitext(p)[0] for p in md_paths])
+    new_images = [p for p in image_paths if os.path.splitext(p)[0] not in md_basenames]
     return new_images
 
 

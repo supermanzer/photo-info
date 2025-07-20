@@ -29,11 +29,13 @@ class TestPhotoInfo(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
+        import shutil
         if self.image_dir.exists():
-            self.image_dir.rmdir()
+            shutil.rmtree(self.image_dir)
         if self.md_dir.exists():
-            self.md_dir.rmdir()
-        os.rmdir(self.temp_dir)
+            shutil.rmtree(self.md_dir)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
 
     @patch("photo_info.photo_info.Image.open")
     def test_get_exif_data(self, mock_open):
@@ -66,38 +68,62 @@ class TestPhotoInfo(unittest.TestCase):
         self.assertEqual(labeled_exif["DateTimeOriginal"], "2021:09:01 12:00:00")
 
     def test_identify_new_images(self):
-        """Test identifying new images."""
-        with patch("os.listdir") as mock_listdir:
-            mock_listdir.side_effect = [
-                ["DSC_3021.jpg", "DSC_3106.jpg"],
-                ["DSC_3106.md"],
-            ]
-            found_images = identify_new_images("test_files/", "test_files/")
-            self.assertEqual(found_images, ["DSC_3021"])
+        """Test identifying new images in root and nested directories."""
+        # Create image files in root and nested directories
+        img1 = self.image_dir / "DSC_3021.jpg"
+        img2 = self.image_dir / "DSC_3106.jpg"
+        nested_dir = self.image_dir / "2025"
+        nested_dir.mkdir()
+        img3 = nested_dir / "nested_img.jpg"
+        img1.touch()
+        img2.touch()
+        img3.touch()
+
+        # Create markdown file for img2 only (root)
+        md2 = self.md_dir / "DSC_3106.md"
+        md2.touch()
+        # Create markdown file for img3 only (nested)
+        nested_md_dir = self.md_dir / "2025"
+        nested_md_dir.mkdir()
+        md3 = nested_md_dir / "nested_img.md"
+        md3.touch()
+
+        found_images = identify_new_images(str(self.image_dir), str(self.md_dir))
+        # Should only find img1.jpg (root, no .md)
+        self.assertIn("DSC_3021.jpg", found_images)
+        # Should not find img2.jpg or nested_img.jpg (they have .md files)
+        self.assertNotIn("DSC_3106.jpg", found_images)
+        self.assertNotIn(os.path.join("2025", "nested_img.jpg"), found_images)
 
     @patch("builtins.open", new_callable=mock_open)
     def test_write_to_markdown(self, mock_file):
-        """Test writing EXIF data to markdown."""
+        """Test writing EXIF data to markdown with nested structure."""
         labeled_exif = {
             "Make": "NIKON CORPORATION",
             "Model": "NIKON D750",
             "DateTimeOriginal": "2021:09:01 12:00:00",
         }
-        # Create a test image path that includes 'public'
-        image_path = "test_files/public/images/DSC_3106.jpg"
-        write_to_markdown(image_path, labeled_exif, "test_files/")
-        mock_file.assert_called_once_with(
-            "test_files/DSC_3106.md", "w+", encoding="utf-8"
-        )
-        mock_file().write.assert_any_call("---\n")
-        mock_file().write.assert_any_call("title: placeholder\n")
-        mock_file().write.assert_any_call("description: placeholder\n")
-        mock_file().write.assert_any_call("src: images/DSC_3106.jpg\n")
-        mock_file().write.assert_any_call("details:\n")
-        mock_file().write.assert_any_call("  Make: NIKON CORPORATION\n")
-        mock_file().write.assert_any_call("  Model: NIKON D750\n")
-        mock_file().write.assert_any_call("  DateTimeOriginal: 2021:09:01 12:00:00\n")
-        mock_file().write.assert_any_call("---\n")
+        # Test with a nested image path
+        image_path = os.path.join("nested", "dir", "DSC_3106.jpg")
+        md_dir = "test_files/"
+        expected_md_path = os.path.join(md_dir, "nested", "dir", "DSC_3106.md")
+        write_to_markdown(image_path, labeled_exif, md_dir)
+
+        # Check that open was called for the expected markdown file
+        open_calls = [call[0][0] for call in mock_file.call_args_list]
+        self.assertIn(expected_md_path, open_calls)
+
+        # Check that the markdown content was written
+        handle = mock_file()
+        handle.write.assert_any_call("---\n")
+        handle.write.assert_any_call("title: placeholder\n")
+        handle.write.assert_any_call("description: placeholder\n")
+        handle.write.assert_any_call(f"src: {image_path}\n")
+        handle.write.assert_any_call("details:\n")
+        handle.write.assert_any_call("  Make: NIKON CORPORATION\n")
+        handle.write.assert_any_call("  Model: NIKON D750\n")
+        handle.write.assert_any_call("  DateTimeOriginal: 2021:09:01 12:00:00\n")
+        handle.write.assert_any_call("---\n")
 
 
 class TestCLI(unittest.TestCase):
